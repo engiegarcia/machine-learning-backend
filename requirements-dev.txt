@@ -1,0 +1,6 @@
+-r requirements.txt
+pytest==9.1.1
+# Starlette 1.x avisa que TestClient prefiere 'httpx2'; el aviso se silencia en pyproject.toml.
+httpx==0.28.1
+ruff==0.16.10
+black==26.10.0

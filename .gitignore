@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+# Archivos mensuales de ENOSA (se reconstruyen con: python cli.py descargar)
+datos/limpios/
