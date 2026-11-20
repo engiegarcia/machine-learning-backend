@@ -1,0 +1,10 @@
+services:
+  backend:
+    build: .
+    image: machine-learning-backend:1.0.0
+    ports:
+      - "${BACKEND_PORT:-8000}:10000"
+    env_file:
+      - path: .env
+        required: false
+    restart: unless-stopped

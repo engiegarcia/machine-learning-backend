@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: machine-learning-api
+    runtime: docker
+    # Sin "plan", Render crea el servicio en Starter (de pago).
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: ENVIRONMENT
+        value: prod
+      - key: LOG_JSON
+        value: "true"
+      - key: N_JOBS
+        value: "1"
+      # Configurar en Render con la URL definitiva del frontend, por ejemplo:
+      # ["https://tu-proyecto.vercel.app"]
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
