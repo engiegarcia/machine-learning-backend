@@ -117,13 +117,15 @@ coinciden con las del informe.
 
 | Notebook | Contenido | Genera |
 |---|---|---|
-| `notebooks/01_datos_y_preprocesamiento.ipynb` | Fuente, variables y datos personales, análisis exploratorio, filtrado, cercas de Tukey, panel distrito-mes y formulaciones | `datos/procesados/panel.parquet` |
-| `notebooks/02_no_supervisado.ipynb` | Perfiles mensuales, k-means (codo y silueta), grupos, PCA, agrupamiento jerárquico y DBSCAN | `modelos/kmeans_distritos.joblib` |
-| `notebooks/03_supervisado.ipynb` | Particiones A y B, ingenuos, gradiente descendiente, once modelos con búsqueda en rejilla, bootstrap, análisis y exportación del modelo adoptado | `modelos/svr_corrida2.joblib` |
+| `notebooks/01_datos_y_preprocesamiento.ipynb` | Fuente, variables y datos personales, calidad de los datos (faltantes y filas idénticas), análisis exploratorio, filtrado, cercas de Tukey, panel distrito-mes y elección de la variable objetivo | `datos/procesados/panel.parquet` |
+| `notebooks/02_no_supervisado.ipynb` | Perfiles mensuales, k-means (codo y silueta), grupos, PCA, agrupamiento jerárquico y DBSCAN | `modelos/kmeans_distritos.joblib` y `.json` |
+| `notebooks/03_supervisado.ipynb` | Particiones A y B, ingenuos, gradiente descendiente, búsqueda en rejilla de once modelos, validación cruzada frente a prueba temporal, bootstrap, sobreajuste, residuos y sesgo, importancia de variables y exportación del modelo adoptado | `modelos/svr_corrida2.joblib` y `.json` |
 
 Todos siguen la misma plantilla: objetivo, entradas y salidas, índice; en cada sección, teoría con
-sus ecuaciones y citas, código breve, resultado e interpretación; verificación, conclusiones y
-referencias. Se abren con Jupyter o VS Code usando el entorno del proyecto (`ipykernel` está en
+sus ecuaciones y citas, código, resultado e interpretación; verificación, conclusiones y
+referencias. El código que sostiene cada decisión (búsqueda de hiperparámetros, k-means, DBSCAN,
+gradiente descendiente, bootstrap) está escrito en el notebook. Cada modelo exportado lleva un
+`.json` con sus hiperparámetros, datos de entrenamiento, métricas, semilla y versiones. Se abren con Jupyter o VS Code usando el entorno del proyecto (`ipykernel` está en
 `requirements-dev.txt`). El primero necesita los recibos de `datos/limpios/`
 (`python cli.py descargar`), unos 8 GB de memoria y unos dos minutos; los otros dos parten del panel
 del repositorio.
