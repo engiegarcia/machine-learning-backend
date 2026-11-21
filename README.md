@@ -44,7 +44,8 @@ no contiene información de personas. Los archivos mensuales no se incluyen: se 
 2. **Variables** (`ml/caracteristicas.py`): rezagos de 1, 2, 12 y 13 meses, días facturados, número
    de suministros, proporción de recibos en cero, mes, provincia y grupo k-means.
 3. **No supervisado** (`ml/agrupamiento.py`): k-means sobre los perfiles mensuales 2024-2025 (k por
-   silueta, con el codo como referencia); DBSCAN sobre `[ln y, ln(y/y₋₁), ln(y/y₋₁₂)]` estandarizado,
+   silueta, con el codo como referencia; para verlos en un plano, los perfiles se proyectan en sus
+   dos primeras componentes principales con PCA); DBSCAN sobre `[ln y, ln(y/y₋₁), ln(y/y₋₁₂)]` estandarizado,
    con `min_samples = 2·dimensión` y ε en la rodilla de la curva k-distancia.
 4. **Supervisado** (`ml/gradiente.py`, `ml/modelos.py`): regresión lineal propia por **gradiente
    descendiente** comparada con la **ecuación normal**, Ridge, Random Forest y Gradient Boosting, en
@@ -87,6 +88,9 @@ Los resultados (`resultados/resultados.json`) son los del informe y se reproduce
   | 2 | 41 | 64,2 |
   | 3, ciudades de la costa | 18 | 124,7 |
 
+  En PCA, la primera componente explica el 99,4 % de la varianza de los perfiles: los grupos se
+  separan sobre todo por el nivel de consumo, no por la forma de la curva estacional.
+
 - **DBSCAN**: ε = 0,837 y `min_samples` = 6; marca 30 distrito-meses atípicos de 1716 evaluados.
 
 ## Estructura
@@ -102,7 +106,7 @@ ml/                 Aprendizaje automático (no depende de FastAPI)
   modelos.py          Pipelines, búsqueda de hiperparámetros, métricas, ingenuos, importancia
   corridas.py         Corridas del informe y análisis del modelo adoptado
   pronostico.py       Pronóstico del mes siguiente con el modelo adoptado
-  figuras.py          Las 12 figuras del informe
+  figuras.py          Las 13 figuras del informe
 core/ schemas/ services/ routers/   Configuración, esquemas Pydantic, servicio y endpoints
 cli.py              Línea de comandos: descargar, preparar, corridas, figuras, pronosticar
 datos/fuentes/      URLs de los 34 archivos mensuales y del diccionario
@@ -143,9 +147,9 @@ Todos los endpoints son `GET` y responden JSON. La documentación interactiva es
 | `/api/resumen` | Fuente, conteos del preprocesamiento y desempeño del modelo adoptado |
 | `/api/distritos` | Distritos con su grupo k-means y su último consumo medio |
 | `/api/distritos/{ubigeo}` | Serie mensual, meses atípicos, pronósticos de la prueba 2026 y pronóstico del mes siguiente |
-| `/api/grupos` | k-means: codo, silueta y perfil de cada grupo |
-| `/api/atipicos` | DBSCAN: parámetros y distrito-meses atípicos |
-| `/api/modelos` | Métricas de las corridas, validación cruzada, gradiente descendiente e importancia de variables |
+| `/api/grupos` | k-means: codo, silueta, perfil de cada grupo y proyección PCA de los distritos |
+| `/api/atipicos` | DBSCAN: parámetros, curva k-distancia, distrito-meses evaluados y atípicos |
+| `/api/modelos` | Métricas de las corridas, validación cruzada, gradiente descendiente, importancia de variables y valores reales frente a pronosticados en 2026 |
 | `/api/regional` | Serie regional mensual y pronóstico agregado de 2026 |
 | `/api/pronostico` | Pronóstico del mes siguiente para los 78 distritos |
 | `/api/pronostico/{ubigeo}?dias=31` | Pronóstico de un distrito; `dias` = días facturados supuestos (20 a 40) |
