@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +42,13 @@ ESTILO = {
 
 def coma(v: float, d: int = 0) -> str:
     return f"{v:.{d}f}".replace(".", ",")
+
+
+def nombre_propio(texto: str) -> str:
+    """«SAN JUAN DE LA VIRGEN» → «San Juan de la Virgen» (artículos en minúscula)."""
+    return re.sub(
+        r"(?<=\s)(De|Del|La|Las|Los|El|Y)(?=\s)", lambda m: m.group(1).lower(), texto.title()
+    )
 
 
 def _etiqueta(p: str) -> str:
@@ -253,43 +261,79 @@ class _Figuras:
 
     def comparacion(self) -> None:
         r = self.r
+        ingenuo = "Ingenuo (mes anterior)"
         nombres = [
-            "Ingenuo (mes anterior)",
-            "Ingenuo estacional ajustado",
-            "Regresión lineal (gradiente descendiente)",
-            "Ridge",
-            "Random Forest",
-            "Gradient Boosting",
+            k
+            for k in r["c2B"]
+            if not k.startswith("_")
+            and k not in ("Ingenuo estacional (mismo mes del año anterior)",)
+            and k != "Regresión lineal (ecuación normal)"
         ]
-        cortos = [
-            "Ingenuo",
-            "Ingenuo\nestac. ajust.",
-            "Regresión\nlineal (GD)",
-            "Ridge",
-            "Random\nForest",
-            "Gradient\nBoosting",
-        ]
-        fig, ax = plt.subplots(figsize=(10.5, 3.9))
-        xx, w = np.arange(len(nombres)), 0.38
+        nombres.sort(key=lambda k: -r["c2B"][k]["test"]["MAE"])
+        corto = {
+            "Ingenuo (mes anterior)": "Ingenuo (mes anterior)",
+            "Ingenuo estacional ajustado": "Ingenuo estacional ajustado",
+            "Regresión lineal (gradiente descendiente)": "Regresión lineal (GD)",
+        }
+        fig, ax = plt.subplots(figsize=(9.5, 6.4))
+        yy, h = np.arange(len(nombres)), 0.38
         v1 = [r["c1B"][n]["test"]["MAE"] for n in nombres]
         v2 = [r["c2B"][n]["test"]["MAE"] for n in nombres]
-        b1 = ax.bar(xx - w / 2, v1, w, color=GRIS_CLARO, edgecolor=GRIS, label="Corrida 1: nivel")
-        b2 = ax.bar(
-            xx + w / 2, v2, w, color=RELLENO, edgecolor=AZUL, label="Corrida 2: variación mensual"
+        b1 = ax.barh(yy + h / 2, v1, h, color=GRIS_CLARO, edgecolor=GRIS, label="Corrida 1: nivel")
+        b2 = ax.barh(
+            yy - h / 2, v2, h, color=RELLENO, edgecolor=AZUL, label="Corrida 2: variación mensual"
         )
         for b in list(b1) + list(b2):
             ax.text(
-                b.get_x() + b.get_width() / 2,
-                b.get_height() + 0.08,
-                coma(b.get_height(), 2),
-                ha="center",
-                fontsize=8.5,
+                b.get_width() + 0.06,
+                b.get_y() + b.get_height() / 2,
+                coma(b.get_width(), 2),
+                va="center",
+                fontsize=8,
             )
-        ax.axhline(r["c2B"]["Ingenuo (mes anterior)"]["test"]["MAE"], color=ROJO, ls="--", lw=1)
-        ax.set_xticks(xx, cortos, fontsize=9.5)
-        ax.set_ylabel("MAE (kWh)")
-        ax.legend(fontsize=9.5, loc="upper left")
+        ax.axvline(r["c2B"][ingenuo]["test"]["MAE"], color=ROJO, ls="--", lw=1)
+        etiquetas = []
+        for n in nombres:
+            e = corto.get(n, n)
+            etiquetas.append(f"{e} (adoptado)" if n == r["mejor"] else e)
+        ax.set_yticks(yy, etiquetas, fontsize=9.5)
+        for lbl, n in zip(ax.get_yticklabels(), nombres, strict=True):
+            if n == r["mejor"]:
+                lbl.set_fontweight("bold")
+        ax.set_xlabel("MAE en la prueba temporal 2026 (kWh)")
+        ax.set_xlim(0, max(v1 + v2) * 1.12)
+        ax.legend(fontsize=9.5, loc="lower right")
         self.guardar(fig, "comparacion.png")
+
+    def jerarquico(self) -> None:
+        j = self.r["jerarquico"]
+        dg = j["dendrograma"]
+        km = self.r["kmeans_asignacion"]
+        nombres = {
+            f["UBIGEO"]: f["DIST_N"] for f in self.r["panel_series"] if f["PERIODO"] == "202512"
+        }
+        fig, ax = plt.subplots(figsize=(11, 4.6))
+        for xs, ys in zip(dg["icoord"], dg["dcoord"], strict=True):
+            ax.plot(xs, ys, color=GRIS, lw=0.9)
+        ax.axhline(j["altura_corte"], color=ROJO, ls="--", lw=1.1)
+        ax.text(
+            8,
+            j["altura_corte"] + 0.6,
+            f"Corte en {j['k']} grupos",
+            color=ROJO,
+            fontsize=9,
+        )
+        pos = [5 + 10 * i for i in range(len(dg["hojas"]))]
+        ax.set_xticks(
+            pos, [nombre_propio(nombres[u]) for u in dg["hojas"]], rotation=90, fontsize=5.6
+        )
+        for lbl, u in zip(ax.get_xticklabels(), dg["hojas"], strict=True):
+            lbl.set_color(COLOR_GRUPO.get(int(km[u]), GRIS))
+        ax.set_xlim(0, 10 * len(dg["hojas"]))
+        ax.set_ylabel("Distancia de Ward")
+        ax.tick_params(axis="x", length=0)
+        ax.grid(False)
+        self.guardar(fig, "jerarquico.png")
 
     def regional(self) -> None:
         rg = self.r["regional_B"]
@@ -385,7 +429,7 @@ class _Figuras:
 def generar(
     resultados: dict[str, Any], preprocesamiento: dict[str, Any], destino: Path
 ) -> list[str]:
-    """Dibuja las 13 figuras del informe en ``destino`` y devuelve sus nombres."""
+    """Dibuja las 14 figuras del informe en ``destino`` y devuelve sus nombres."""
     plt.rcParams.update(ESTILO)
     f = _Figuras(resultados, preprocesamiento, destino)
     for paso in (
@@ -395,6 +439,7 @@ def generar(
         f.codo,
         f.perfiles,
         f.pca,
+        f.jerarquico,
         f.dbscan,
         f.gradiente,
         f.comparacion,
