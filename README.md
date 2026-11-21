@@ -6,7 +6,8 @@ enero de 2024 a octubre de 2026, 19,7 millones de recibos), el proyecto:
 
 - **pronostica el consumo medio mensual de los hogares (tarifa BT5B) de cada distrito** de Piura y
   Tumbes (regresión);
-- **agrupa los distritos** según su perfil estacional con **k-means**;
+- **agrupa los distritos** según su perfil estacional con **k-means**, contrastado con un
+  **agrupamiento jerárquico** y visualizado con **PCA**;
 - **detecta distrito-meses atípicos** con **DBSCAN**.
 
 Es la continuación de los proyectos de sistema experto, sistema difuso y algoritmo genético del
@@ -45,12 +46,15 @@ no contiene información de personas. Los archivos mensuales no se incluyen: se 
    de suministros, proporción de recibos en cero, mes, provincia y grupo k-means.
 3. **No supervisado** (`ml/agrupamiento.py`): k-means sobre los perfiles mensuales 2024-2025 (k por
    silueta, con el codo como referencia; para verlos en un plano, los perfiles se proyectan en sus
-   dos primeras componentes principales con PCA); DBSCAN sobre `[ln y, ln(y/y₋₁), ln(y/y₋₁₂)]` estandarizado,
+   dos primeras componentes principales con PCA); agrupamiento jerárquico aglomerativo (Ward) sobre
+   los mismos perfiles, comparado con k-means con el índice de Rand ajustado; DBSCAN sobre `[ln y, ln(y/y₋₁), ln(y/y₋₁₂)]` estandarizado,
    con `min_samples = 2·dimensión` y ε en la rodilla de la curva k-distancia.
 4. **Supervisado** (`ml/gradiente.py`, `ml/modelos.py`): regresión lineal propia por **gradiente
-   descendiente** comparada con la **ecuación normal**, Ridge, Random Forest y Gradient Boosting, en
-   `Pipeline` con `ColumnTransformer` y `GridSearchCV` (k = 5). Referencias ingenuas: mes anterior,
-   mismo mes del año anterior y estacional ajustado.
+   descendiente** comparada con la **ecuación normal**, Ridge, Lasso, árbol de decisión, KNN, SVR,
+   red neuronal (MLP), Random Forest, Gradient Boosting y XGBoost, en `Pipeline` con
+   `ColumnTransformer` y `GridSearchCV` (k = 5). Referencias ingenuas: mes anterior, mismo mes del
+   año anterior y estacional ajustado. El modelo adoptado es el de menor MAE en la prueba temporal
+   de la corrida 2; su ventaja sobre los demás se mide con bootstrap por distrito.
 5. **Validación** (`ml/corridas.py`): MAE, RMSE y R² en kWh con dos esquemas:
    - **A**: división aleatoria 80/20 (semilla 42) con validación cruzada k = 5;
    - **B**: prueba temporal, entrenamiento de febrero a diciembre de 2025 y prueba de enero a octubre
@@ -70,14 +74,22 @@ Los resultados (`resultados/resultados.json`) son los del informe y se reproduce
 | Ingenuo estacional ajustado | 3,89 | 3,89 |
 | Regresión lineal (gradiente descendiente) | 5,77 | 3,64 |
 | Ridge | 5,54 | 3,55 |
-| Random Forest | 5,96 | **3,19** |
+| Lasso | 5,57 | 3,43 |
+| Árbol de decisión | 6,58 | 3,71 |
+| KNN | 8,26 | 3,20 |
+| SVR | 5,25 | **3,15** |
+| Red neuronal (MLP) | 4,73 | 3,69 |
+| Random Forest | 5,96 | 3,19 |
 | Gradient Boosting | 5,69 | 3,45 |
+| XGBoost | 5,91 | 3,26 |
 
 - **Corrida 1**: con la división aleatoria todos los modelos superan al ingenuo, pero en la prueba
   temporal ninguno lo hace. El nivel de consumo de 2026 es mayor que el de 2025.
-- **Corrida 2**: el **Random Forest** (500 árboles, hojas de 3 o más) obtiene un MAE de 3,19 kWh
-  (RMSE 5,20; R² 0,986). Es 25,6 % menos que el ingenuo y 18,0 % menos que el estacional ajustado.
-  Es el modelo adoptado.
+- **Corrida 2**: el **SVR** (kernel RBF, C = 1, ε = 0,1 sobre el objetivo estandarizado) obtiene
+  un MAE de 3,15 kWh (RMSE 5,22; R² 0,986). Es 26,5 % menos que el ingenuo y 19,0 % menos que el
+  estacional ajustado, y es el modelo adoptado. Con bootstrap por distrito, su ventaja sobre Random
+  Forest (3,19), KNN (3,20) y XGBoost (3,26) no es significativa (el intervalo del 95 % incluye
+  el 0); sobre los demás modelos y el ingenuo, sí.
 - **Gradiente descendiente**: con α = 0,1 llega a la solución de la ecuación normal; con α = 0,5
   diverge en la corrida 1.
 - **k-means**: k = 3 (silueta 0,587):
@@ -91,6 +103,10 @@ Los resultados (`resultados/resultados.json`) son los del informe y se reproduce
   En PCA, la primera componente explica el 99,4 % de la varianza de los perfiles: los grupos se
   separan sobre todo por el nivel de consumo, no por la forma de la curva estacional.
 
+- **Jerárquico (Ward)**: cortado en 3 grupos, coincide con k-means en 68 de los 78 distritos (índice
+  de Rand ajustado 0,646); los 10 restantes pasan del grupo 2 al 3. Su silueta es 0,575 con 3
+  grupos y 0,600 con 2.
+
 - **DBSCAN**: ε = 0,837 y `min_samples` = 6; marca 30 distrito-meses atípicos de 1716 evaluados.
 
 ## Estructura
@@ -101,12 +117,12 @@ ml/                 Aprendizaje automático (no depende de FastAPI)
   fuente.py           Descarga y lectura de los archivos mensuales sin datos personales
   preprocesamiento.py Filtros, atípicos y panel distrito-mes
   caracteristicas.py  Rezagos y formulaciones de las corridas 1 y 2
-  agrupamiento.py     k-means de distritos y DBSCAN de distrito-meses
+  agrupamiento.py     k-means, PCA y agrupamiento jerárquico de distritos; DBSCAN de distrito-meses
   gradiente.py        Regresión lineal por gradiente descendiente y ecuación normal
   modelos.py          Pipelines, búsqueda de hiperparámetros, métricas, ingenuos, importancia
   corridas.py         Corridas del informe y análisis del modelo adoptado
   pronostico.py       Pronóstico del mes siguiente con el modelo adoptado
-  figuras.py          Las 13 figuras del informe
+  figuras.py          Las 14 figuras del informe
 core/ schemas/ services/ routers/   Configuración, esquemas Pydantic, servicio y endpoints
 cli.py              Línea de comandos: descargar, preparar, corridas, figuras, pronosticar
 datos/fuentes/      URLs de los 34 archivos mensuales y del diccionario
@@ -123,7 +139,7 @@ python -m venv .venv
 pip install -r requirements-dev.txt
 cp .env.example .env
 
-python cli.py corridas          # k-means, DBSCAN y corridas 1 y 2 (≈ 3 min)
+python cli.py corridas          # agrupamientos, DBSCAN y corridas 1 y 2 (≈ 1 min)
 python cli.py figuras           # figuras del informe
 python cli.py pronosticar --ubigeo 200101 --dias 31
 
@@ -147,14 +163,14 @@ Todos los endpoints son `GET` y responden JSON. La documentación interactiva es
 | `/api/resumen` | Fuente, conteos del preprocesamiento y desempeño del modelo adoptado |
 | `/api/distritos` | Distritos con su grupo k-means y su último consumo medio |
 | `/api/distritos/{ubigeo}` | Serie mensual, meses atípicos, pronósticos de la prueba 2026 y pronóstico del mes siguiente |
-| `/api/grupos` | k-means: codo, silueta, perfil de cada grupo y proyección PCA de los distritos |
+| `/api/grupos` | k-means: codo, silueta, perfil de cada grupo, proyección PCA y agrupamiento jerárquico (dendrograma y coincidencias) |
 | `/api/atipicos` | DBSCAN: parámetros, curva k-distancia, distrito-meses evaluados y atípicos |
-| `/api/modelos` | Métricas de las corridas, validación cruzada, gradiente descendiente, importancia de variables y valores reales frente a pronosticados en 2026 |
+| `/api/modelos` | Métricas de las corridas, validación cruzada, gradiente descendiente, importancia de variables, valores reales frente a pronosticados en 2026 y bootstrap del modelo adoptado frente a los demás |
 | `/api/regional` | Serie regional mensual y pronóstico agregado de 2026 |
 | `/api/pronostico` | Pronóstico del mes siguiente para los 78 distritos |
 | `/api/pronostico/{ubigeo}?dias=31` | Pronóstico de un distrito; `dias` = días facturados supuestos (20 a 40) |
 
-Al iniciar, el servicio reentrena el Random Forest adoptado con todos los distrito-meses que tienen
+Al iniciar, el servicio reentrena el modelo adoptado (SVR) con todos los distrito-meses que tienen
 sus rezagos completos. El pronóstico del mes siguiente supone dos valores que aún no se conocen:
 
 - el número de suministros, que se toma igual al del último mes;

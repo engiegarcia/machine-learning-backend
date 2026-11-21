@@ -14,8 +14,8 @@ def test_resumen(client):
     j = client.get("/api/resumen").json()
     assert j["distritos"] == 78 and len(j["periodos"]) == 34
     assert j["fuente"]["licencia"].endswith("(ODbL)")
-    assert j["modelo_adoptado"] == "Random Forest"
-    assert j["mejora_frente_ingenuo"] == pytest.approx(0.256, abs=1e-3)
+    assert j["modelo_adoptado"] == "SVR"
+    assert j["mejora_frente_ingenuo"] == pytest.approx(0.265, abs=1e-3)
 
 
 def test_distritos(client):
@@ -48,7 +48,11 @@ def test_grupos_y_atipicos(client):
 
 
 def test_datos_de_los_graficos_de_dispersion(client):
-    pca = client.get("/api/grupos").json()["pca"]
+    g = client.get("/api/grupos").json()
+    j = g["jerarquico"]
+    assert len(j["dendrograma"]["hojas"]) == len(j["dendrograma"]["nombres"]) == 78
+    assert len(j["dendrograma"]["icoord"]) == 77
+    pca = g["pca"]
     assert len(pca["puntos"]) == 78 and [c["grupo"] for c in pca["centroides"]] == [1, 2, 3]
     xs = [c["x"] for c in pca["centroides"]]
     assert xs == sorted(xs)  # la componente 1 ordena los grupos por consumo
@@ -62,10 +66,13 @@ def test_datos_de_los_graficos_de_dispersion(client):
 
 def test_modelos_y_regional(client):
     m = client.get("/api/modelos").json()
-    assert len(m["corridas"]) == 4 and m["adoptado"] == "Random Forest"
+    assert len(m["corridas"]) == 4 and m["adoptado"] == "SVR"
     c2b = next(c for c in m["corridas"] if c["corrida"] == 2 and c["esquema"] == "B")
-    rf = next(x for x in c2b["prueba_metricas"] if x["modelo"] == "Random Forest")
-    assert rf["MAE"] == pytest.approx(3.19, abs=5e-3)
+    assert len(c2b["prueba_metricas"]) == 14 and len(c2b["validacion_cruzada"]) == 10
+    svr = next(x for x in c2b["prueba_metricas"] if x["modelo"] == "SVR")
+    assert svr["MAE"] == pytest.approx(3.155, abs=5e-4)
+    comp = {c["modelo"]: c for c in m["comparacion_adoptado"]}
+    assert comp["Ingenuo (mes anterior)"]["p_menor"] == 1.0
     assert "curvas" not in c2b["gradiente"]
     reg = client.get("/api/regional").json()["serie"]
     assert len(reg) == 34 and reg[-1]["pronostico"] is not None and reg[0]["pronostico"] is None

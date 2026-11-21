@@ -51,8 +51,12 @@ def test_no_supervisado(r):
 def test_corridas(r):
     b1, b2 = r["c1B"], r["c2B"]
     assert b1["Ingenuo (mes anterior)"]["test"]["MAE"] == pytest.approx(4.29, abs=5e-3)
-    assert min(b1[m]["test"]["MAE"] for m in ("Ridge", "Random Forest", "Gradient Boosting")) > 4.29
-    assert r["mejor"] == "Random Forest"
+    aprendidos = [m for m in b1 if not m.startswith(("_", "Ingenuo"))]
+    assert len(aprendidos) == 11
+    assert min(b1[m]["test"]["MAE"] for m in aprendidos) > 4.29  # corrida 1: nadie gana
+    assert r["mejor"] == "SVR"
+    assert b2["SVR"]["test"]["MAE"] == pytest.approx(3.155, abs=5e-4)
+    assert b2["SVR"]["params"] == {"C": 1, "epsilon": 0.1}
     assert b2["Random Forest"]["test"]["MAE"] == pytest.approx(3.19, abs=5e-3)
     assert b2["Random Forest"]["params"] == {
         "max_depth": None,
@@ -60,3 +64,17 @@ def test_corridas(r):
         "n_estimators": 500,
     }
     assert r["c1A"]["Gradient Boosting"]["test"]["MAE"] == pytest.approx(2.72, abs=5e-3)
+    # Empate estadístico con Random Forest, KNN y XGBoost; ventaja clara sobre el resto.
+    comp = r["comparacion_adoptado"]
+    for m in ("Random Forest", "KNN", "XGBoost"):
+        assert comp[m]["ic_inferior"] < 0 < comp[m]["ic_superior"]
+    for m in ("Ingenuo (mes anterior)", "Ridge", "Lasso", "Gradient Boosting"):
+        assert comp[m]["ic_superior"] < 0
+
+
+def test_jerarquico(r):
+    j = r["jerarquico"]
+    assert j["k"] == 3 and j["ari"] == pytest.approx(0.646, abs=5e-4)
+    assert j["coincidencias"]["1"] == {"1": 19, "2": 0, "3": 0}
+    assert j["coincidencias"]["2"] == {"1": 0, "2": 31, "3": 10}
+    assert len(j["dendrograma"]["hojas"]) == 78

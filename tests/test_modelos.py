@@ -8,7 +8,14 @@ import pytest
 
 from ml import caracteristicas as car
 from ml import modelos, pronostico
-from ml.agrupamiento import dbscan_atipicos, kmeans_distritos, proyeccion_pca, rodilla
+from ml.agrupamiento import (
+    dbscan_atipicos,
+    jerarquico_distritos,
+    kmeans_distritos,
+    proyeccion_pca,
+    rodilla,
+)
+from ml.corridas import comparar_errores
 from ml.gradiente import GDRegressor, ecuacion_normal
 
 
@@ -78,6 +85,33 @@ def test_pca_ordena_los_grupos_por_consumo(panel_sintetico):
     assert pc["centroides"][1][0] == pytest.approx(np.mean(x1))
 
 
+def test_jerarquico_coincide_con_kmeans_en_niveles_separados(panel_sintetico):
+    km = kmeans_distritos(car.ordenar(panel_sintetico), ks=range(2, 4))
+    j = jerarquico_distritos(km, ks=range(2, 4))
+    assert j["ari"] == pytest.approx(1.0)
+    assert j["grupo"] == {u: int(g) for u, g in km.grupo.items()}
+    assert sorted(j["dendrograma"]["hojas"]) == sorted(km.perfiles.index)
+
+
+def test_comparar_errores_con_bootstrap_por_grupo():
+    grupos = np.repeat(np.arange(20), 5)
+    base = np.ones(100)
+    err = {"A": base, "peor": base + 1, "igual": base.copy()}
+    c = comparar_errores(err, "A", grupos, repeticiones=200)
+    assert c["peor"]["diferencia"] == pytest.approx(-1) and c["peor"]["p_menor"] == 1
+    assert c["igual"]["ic_inferior"] == c["igual"]["ic_superior"] == 0
+
+
+@pytest.mark.parametrize("nombre", list(modelos.REJILLAS))
+def test_cada_modelo_se_crea_con_parametros_elegidos(nombre):
+    rejilla = modelos.REJILLAS[nombre][1]
+    params = {modelos.nombre_parametro(k): v[0] for k, v in rejilla.items()}
+    m = modelos.crear(nombre, params)
+    real = m.regressor.get_params() if hasattr(m, "regressor") else m.get_params()
+    for k, v in params.items():
+        assert real[k] == v
+
+
 def test_dbscan_marca_un_mes_anomalo(pn):
     pn = pn.copy()
     i = pn.index[(pn["UBIGEO"] == "200201") & (pn["PERIODO"] == "202506")][0]
@@ -102,6 +136,8 @@ def test_metricas_e_ingenuos():
 def test_pronostico_del_mes_siguiente(pn):
     sup = car.supervisado(pn)
     modelo = pronostico.entrenar(sup, {"n_estimators": 10, "min_samples_leaf": 3}, n_jobs=1)
+    svr = pronostico.entrenar(sup, {"C": 1, "epsilon": 0.1}, nombre="SVR")
+    assert len(pronostico.pronosticar(svr, pronostico.filas_siguiente(pn))) == 4
     x = pronostico.filas_siguiente(pn, {"200101": 31.0})
     ult = pn[pn["UBIGEO"] == "200101"].iloc[-1]
     assert x.loc["200101", "periodo"] == "202603" and x.loc["200101", "mes"] == 3
