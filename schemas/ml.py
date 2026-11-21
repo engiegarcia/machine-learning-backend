@@ -104,11 +104,33 @@ class Grupo(BaseModel):
     provincias: dict[str, int]
 
 
+class PuntoPCA(BaseModel):
+    ubigeo: str
+    distrito: str
+    provincia: str
+    grupo: int
+    x: float = Field(description="Componente principal 1")
+    y: float = Field(description="Componente principal 2")
+
+
+class CentroidePCA(BaseModel):
+    grupo: int
+    x: float
+    y: float
+
+
+class ProyeccionPCA(BaseModel):
+    varianza: list[float] = Field(description="Proporción de varianza de cada componente")
+    puntos: list[PuntoPCA]
+    centroides: list[CentroidePCA]
+
+
 class GruposResponse(BaseModel):
     k: int
     silueta: dict[int, float]
     codo: dict[int, float]
     grupos: list[Grupo]
+    pca: ProyeccionPCA
 
 
 class Atipico(BaseModel):
@@ -125,6 +147,15 @@ class Atipico(BaseModel):
     grupo: int
 
 
+class PuntoDBSCAN(BaseModel):
+    ubigeo: str
+    distrito: str
+    periodo: str
+    log_mes: float = Field(description="ln(y / y del mes anterior)")
+    log_anio: float = Field(description="ln(y / y del mismo mes del año anterior)")
+    ruido: bool
+
+
 class AtipicosResponse(BaseModel):
     eps: float
     min_samples: int
@@ -132,6 +163,8 @@ class AtipicosResponse(BaseModel):
     clusters: int
     atipicos: list[Atipico]
     por_periodo: dict[str, int]
+    kdist: list[float] = Field(description="Distancia al min_samples-ésimo vecino, ordenada")
+    puntos: list[PuntoDBSCAN]
 
 
 class Metrica(BaseModel):
@@ -153,6 +186,15 @@ class Corrida(BaseModel):
     gradiente: dict[str, Any]
 
 
+class PuntoDispersion(BaseModel):
+    ubigeo: str
+    distrito: str
+    periodo: str
+    grupo: int
+    real: float
+    pronostico: float
+
+
 class ModelosResponse(BaseModel):
     corridas: list[Corrida]
     adoptado: str
@@ -160,6 +202,9 @@ class ModelosResponse(BaseModel):
     mae_por_grupo: dict[int, dict[str, float]]
     mae_por_periodo: dict[str, dict[str, float]]
     mape: dict[str, float]
+    real_vs_pronostico: list[PuntoDispersion] = Field(
+        description="Prueba temporal 2026 del modelo adoptado (corrida 2)"
+    )
 
 
 class PuntoRegional(BaseModel):

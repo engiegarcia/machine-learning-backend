@@ -47,6 +47,19 @@ def test_grupos_y_atipicos(client):
     assert sapillica["distrito"] == "SAPILLICA" and sapillica["periodo"] == "202502"
 
 
+def test_datos_de_los_graficos_de_dispersion(client):
+    pca = client.get("/api/grupos").json()["pca"]
+    assert len(pca["puntos"]) == 78 and [c["grupo"] for c in pca["centroides"]] == [1, 2, 3]
+    xs = [c["x"] for c in pca["centroides"]]
+    assert xs == sorted(xs)  # la componente 1 ordena los grupos por consumo
+    a = client.get("/api/atipicos").json()
+    assert len(a["kdist"]) == len(a["puntos"]) == a["evaluados"]
+    assert a["kdist"] == sorted(a["kdist"])
+    assert sum(p["ruido"] for p in a["puntos"]) == 30
+    m = client.get("/api/modelos").json()["real_vs_pronostico"]
+    assert len(m) == 780 and {p["periodo"][:4] for p in m} == {"2026"}
+
+
 def test_modelos_y_regional(client):
     m = client.get("/api/modelos").json()
     assert len(m["corridas"]) == 4 and m["adoptado"] == "Random Forest"

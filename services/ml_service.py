@@ -156,12 +156,31 @@ class MLService:
         )
 
     def grupos(self) -> s.GruposResponse:
-        r = self.r
+        r, pc = self.r, self.r["kmeans_pca"]
+        n = self.nombres
         return s.GruposResponse(
             k=r["kmeans_k"],
             silueta={int(k): v for k, v in r["kmeans_silueta"].items()},
             codo={int(k): v for k, v in r["kmeans_codo"].items()},
             grupos=[s.Grupo(**g) for g in r["kmeans_grupos"]],
+            pca=s.ProyeccionPCA(
+                varianza=pc["varianza"],
+                puntos=[
+                    s.PuntoPCA(
+                        ubigeo=u,
+                        distrito=n.at[u, "DIST_N"],
+                        provincia=n.at[u, "PROV_N"],
+                        grupo=int(r["kmeans_asignacion"][u]),
+                        x=x,
+                        y=y,
+                    )
+                    for u, (x, y) in sorted(pc["puntos"].items())
+                ],
+                centroides=[
+                    s.CentroidePCA(grupo=int(g), x=x, y=y)
+                    for g, (x, y) in sorted(pc["centroides"].items())
+                ],
+            ),
         )
 
     def atipicos(self) -> s.AtipicosResponse:
@@ -173,7 +192,25 @@ class MLService:
             clusters=db["clusters"],
             atipicos=[s.Atipico(**a) for a in self.r["dbscan_atipicos"]],
             por_periodo=self.r["dbscan_por_periodo"],
+            kdist=[round(v, 4) for v in self.r["dbscan_kdist"]],
+            puntos=self._puntos_dbscan(),
         )
+
+    def _puntos_dbscan(self) -> list[s.PuntoDBSCAN]:
+        pt = self.r["dbscan_puntos"]
+        return [
+            s.PuntoDBSCAN(
+                ubigeo=u,
+                distrito=self.nombres.at[u, "DIST_N"],
+                periodo=p,
+                log_mes=round(x, 5),
+                log_anio=round(y, 5),
+                ruido=lab == -1,
+            )
+            for u, p, x, y, lab in zip(
+                pt["ubigeo"], pt["periodo"], pt["x"], pt["y"], pt["lab"], strict=True
+            )
+        ]
 
     def modelos(self) -> s.ModelosResponse:
         r = self.r
@@ -214,6 +251,17 @@ class MLService:
                 for p, v in r["mae_por_periodo"].items()
             },
             mape={"modelo": r["mape_mejor"], "ingenuo": r["mape_ingenuo"]},
+            real_vs_pronostico=[
+                s.PuntoDispersion(
+                    ubigeo=q["UBIGEO"],
+                    distrito=q["DIST_N"],
+                    periodo=q["PERIODO"],
+                    grupo=int(q["grupo"]),
+                    real=q["y"],
+                    pronostico=q["pred"],
+                )
+                for q in r["pred_B"]
+            ],
         )
 
     def regional(self) -> s.RegionalResponse:
