@@ -3,6 +3,8 @@
 * k-means agrupa los distritos por su perfil mensual de consumo (2024-2025, en logaritmo y
   estandarizado); k se elige con el coeficiente de silueta y se reporta el codo (SSE). Para
   verlos en un plano, los perfiles se proyectan en sus dos primeras componentes principales.
+* El agrupamiento jerárquico aglomerativo (enlace de Ward) se aplica a los mismos perfiles y se
+  compara con k-means con el índice de Rand ajustado.
 * DBSCAN busca distrito-meses atípicos en ``[ln y, ln(y/y_{t-1}), ln(y/y_{t-12})]``
   estandarizado, con ``min_samples = 2·dimensión`` y ε en la rodilla de la curva k-distancia.
 """
@@ -13,9 +15,10 @@ from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
+from scipy.cluster.hierarchy import dendrogram, fcluster, linkage
 from sklearn.cluster import DBSCAN, KMeans
 from sklearn.decomposition import PCA
-from sklearn.metrics import silhouette_score
+from sklearn.metrics import adjusted_rand_score, silhouette_score
 from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import StandardScaler
 
@@ -109,6 +112,42 @@ def resumen_grupos(res: ResultadoKMeans, pn: pd.DataFrame) -> list[dict[str, obj
             }
         )
     return out
+
+
+def jerarquico_distritos(res: ResultadoKMeans, ks: range = range(2, 11)) -> dict[str, object]:
+    """Agrupamiento jerárquico de Ward sobre los perfiles de k-means y su comparación.
+
+    El árbol (dendrograma) se corta en ``k`` grupos para k de 2 a 10; se informa la silueta de
+    cada corte y, con el mismo k que k-means, la tabla de coincidencias y el índice de Rand
+    ajustado (1 = misma partición, 0 = coincidencia esperable por azar). Los grupos se numeran de
+    menor a mayor consumo medio, como en k-means.
+    """
+    x = StandardScaler().fit_transform(np.log(res.perfiles.values))
+    z = linkage(x, method="ward")
+    silueta = {k: float(silhouette_score(x, fcluster(z, k, "maxclust"))) for k in ks}
+    etiquetas = fcluster(z, res.k, "maxclust")
+    nivel = pd.Series(res.perfiles.mean(axis=1).values).groupby(etiquetas).mean().sort_values()
+    orden = {viejo: nuevo + 1 for nuevo, viejo in enumerate(nivel.index)}
+    grupo = pd.Series([orden[e] for e in etiquetas], index=res.perfiles.index, name="jerarquico")
+    km = res.grupo.loc[res.perfiles.index]
+    tabla = pd.crosstab(km, grupo)
+    arbol = dendrogram(z, no_plot=True)
+    return {
+        "k": res.k,
+        "silueta": silueta,
+        "k_silueta": max(silueta, key=silueta.get),
+        "grupo": {u: int(g) for u, g in grupo.items()},
+        "ari": float(adjusted_rand_score(km, grupo)),
+        "coincidencias": {
+            int(a): {int(b): int(tabla.loc[a, b]) for b in tabla.columns} for a in tabla.index
+        },
+        "altura_corte": float((z[-res.k, 2] + z[-res.k + 1, 2]) / 2),
+        "dendrograma": {
+            "icoord": [[float(v) for v in fila] for fila in arbol["icoord"]],
+            "dcoord": [[float(v) for v in fila] for fila in arbol["dcoord"]],
+            "hojas": [str(res.perfiles.index[i]) for i in arbol["leaves"]],
+        },
+    }
 
 
 @dataclass
