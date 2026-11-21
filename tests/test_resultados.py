@@ -72,6 +72,14 @@ def test_corridas(r):
         assert comp[m]["ic_superior"] < 0
 
 
+def test_predicciones_de_todos_los_modelos(r):
+    pm, y = r["pred_modelos_B"], [q["y"] for q in r["pred_B"]]
+    assert len(pm) == 11
+    for k, v in pm.items():
+        mae = sum(abs(a - b) for a, b in zip(v, y, strict=True)) / len(y)
+        assert mae == pytest.approx(r["c2B"][k]["test"]["MAE"], rel=1e-9)
+
+
 def test_jerarquico(r):
     j = r["jerarquico"]
     assert j["k"] == 3 and j["ari"] == pytest.approx(0.646, abs=5e-4)

@@ -143,6 +143,12 @@ def _modelo_adoptado(res_b: dict[str, Any], te: pd.DataFrame, r: dict[str, Any])
     t["err"] = t["pred"] - t["y"]
     a, ai = t.err.abs(), (t.lag1 - t.y).abs()
     r["pred_B"] = t.to_dict(orient="records")
+    # Pronósticos de 2026 de todos los modelos, en el mismo orden que ``pred_B``.
+    r["pred_modelos_B"] = {
+        k: [float(v) for v in res_b[k]["_pred"]]
+        for k in res_b
+        if not k.startswith("_") and "_pred" in res_b[k]
+    }
     r["mae_por_grupo"] = {int(k): float(v) for k, v in a.groupby(t.grupo).mean().items()}
     r["mae_ingenuo_por_grupo"] = {int(k): float(v) for k, v in ai.groupby(t.grupo).mean().items()}
     r["mae_por_periodo"] = a.groupby(t.PERIODO).mean().to_dict()

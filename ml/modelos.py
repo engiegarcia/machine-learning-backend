@@ -184,17 +184,21 @@ def _gradiente(f: int, a: np.ndarray, b: np.ndarray, t: np.ndarray, te: pd.DataF
     out: dict[str, Any] = {}
     t0 = time.time()
     theta = ecuacion_normal(a, t)
+    p_ne = car.a_kwh(f, con_intercepto(b) @ theta, te)
     out["Regresión lineal (ecuación normal)"] = {
-        "test": metricas(yte, car.a_kwh(f, con_intercepto(b) @ theta, te)),
+        "test": metricas(yte, p_ne),
         "segundos": time.time() - t0,
+        "_pred": p_ne,
     }
     curvas = {str(lr): GDRegressor(lr=lr, epochs=EPOCAS_GD).fit(a, t).costo for lr in TASAS_GD}
     t0 = time.time()
     gd = GDRegressor(lr=TASA_GD, epochs=EPOCAS_GD).fit(a, t)
+    p_gd = car.a_kwh(f, gd.predict(b), te)
     out["Regresión lineal (gradiente descendiente)"] = {
-        "test": metricas(yte, car.a_kwh(f, gd.predict(b), te)),
+        "test": metricas(yte, p_gd),
         "params": {"lr": TASA_GD, "epochs": EPOCAS_GD},
         "segundos": time.time() - t0,
+        "_pred": p_gd,
     }
     mse_ne = float(np.mean((con_intercepto(a) @ theta - t) ** 2))
     conv = next(
