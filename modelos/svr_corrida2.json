@@ -1,0 +1,44 @@
+{
+  "modelo": "SVR",
+  "formulacion": "corrida 2: variación logarítmica; consumo = último consumo × exp(pronóstico)",
+  "hiperparametros": {
+    "C": 1,
+    "epsilon": 0.1
+  },
+  "entradas": [
+    "dl_prev",
+    "dl_seas",
+    "dias_ratio",
+    "log_n",
+    "p_cero_lag1",
+    "mes",
+    "PROV_N",
+    "grupo"
+  ],
+  "entrenamiento_final": {
+    "filas": 1638,
+    "desde": "202502",
+    "hasta": "202610"
+  },
+  "prueba_temporal_2026": {
+    "MAE": 3.1546,
+    "RMSE": 5.2153,
+    "R2": 0.9856
+  },
+  "ingenuo_2026": {
+    "MAE": 4.2927,
+    "RMSE": 6.6106,
+    "R2": 0.9768
+  },
+  "sesgo_medio_2026_kwh": -1.4287,
+  "semilla": 42,
+  "versiones": {
+    "numpy": "2.4.6",
+    "pandas": "3.1.1",
+    "scikit-learn": "1.9.1",
+    "scipy": "1.17.1",
+    "xgboost": "3.2.0",
+    "matplotlib": "3.11.2"
+  },
+  "fecha": "2026-11-21"
+}
