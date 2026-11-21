@@ -159,8 +159,20 @@ class _Figuras:
         a1.set_xlabel("k")
         a1.set_ylabel("SSE (inercia)")
         a1.set_title("a) Método del codo", loc="left", fontsize=11)
-        a2.plot(ks, [sil[k] for k in ks], color=AZUL, marker="o")
+        a2.plot(ks, [sil[k] for k in ks], color=AZUL, marker="o", label="k-means")
+        jsil = {int(k): v for k, v in r["jerarquico"]["silueta"].items()}
+        a2.plot(
+            ks,
+            [jsil[k] for k in ks],
+            color=GRIS,
+            marker="s",
+            ls="--",
+            lw=1.3,
+            ms=4,
+            label="Jerárquico (Ward)",
+        )
         a2.plot([r["kmeans_k"]], [sil[int(r["kmeans_k"])]], "o", color=ROJO, ms=9)
+        a2.legend(fontsize=9)
         a2.set_xlabel("k")
         a2.set_ylabel("Coeficiente de silueta")
         a2.set_title("b) Silueta media", loc="left", fontsize=11)
@@ -258,6 +270,41 @@ class _Figuras:
             ax.set_title(titulo, loc="left", fontsize=11)
         ejes[0].set_ylim(5, 1e6)
         self.guardar(fig, "gd.png")
+
+    def paneles(self) -> None:
+        """Real frente a pronosticado en 2026 para cada modelo y el ingenuo (corrida 2)."""
+        te = pd.DataFrame(self.r["pred_B"])
+        y = te["y"].values
+        preds = dict(self.r["pred_modelos_B"])
+        preds.pop("Regresión lineal (ecuación normal)", None)  # igual al gradiente descendiente
+        preds["Ingenuo (mes anterior)"] = te["lag1"].tolist()
+        orden = sorted(preds, key=lambda k: np.mean(np.abs(np.array(preds[k]) - y)))
+        corto = {
+            "Regresión lineal (gradiente descendiente)": "Regresión lineal (GD)",
+            "Ingenuo (mes anterior)": "Ingenuo",
+        }
+        fig, ejes = plt.subplots(3, 4, figsize=(11, 8.6), sharex=True, sharey=True)
+        lim = [15, 300]
+        tk = [20, 50, 120, 300]
+        for ax, k in zip(ejes.flat, orden, strict=False):
+            p = np.array(preds[k])
+            ax.scatter(y, p, s=4, color=ROJO if k.startswith("Ingenuo") else AZUL, alpha=0.5)
+            ax.plot(lim, lim, color="#333", lw=0.8)
+            ax.set_xscale("log")
+            ax.set_yscale("log")
+            ax.set_xlim(lim)
+            ax.set_ylim(lim)
+            ax.set_xticks(tk, [str(v) for v in tk])
+            ax.set_yticks(tk, [str(v) for v in tk])
+            ax.minorticks_off()
+            titulo = corto.get(k, k) + (" (adoptado)" if k == self.r["mejor"] else "")
+            mae = coma(float(np.mean(np.abs(p - y))), 2)
+            ax.set_title(titulo + "\n" + f"MAE {mae} kWh", fontsize=9.5)
+        for ax in ejes.flat[len(orden) :]:
+            ax.set_visible(False)
+        fig.supxlabel("Consumo medio real (kWh)", fontsize=10)
+        fig.supylabel("Consumo medio pronosticado (kWh)", fontsize=10)
+        self.guardar(fig, "paneles.png")
 
     def comparacion(self) -> None:
         r = self.r
@@ -429,7 +476,7 @@ class _Figuras:
 def generar(
     resultados: dict[str, Any], preprocesamiento: dict[str, Any], destino: Path
 ) -> list[str]:
-    """Dibuja las 14 figuras del informe en ``destino`` y devuelve sus nombres."""
+    """Dibuja las 15 figuras del informe en ``destino`` y devuelve sus nombres."""
     plt.rcParams.update(ESTILO)
     f = _Figuras(resultados, preprocesamiento, destino)
     for paso in (
@@ -445,6 +492,7 @@ def generar(
         f.comparacion,
         f.regional,
         f.dispersion,
+        f.paneles,
         f.importancia,
         f.mae_mes,
     ):
