@@ -122,7 +122,7 @@ ml/                 Aprendizaje automático (no depende de FastAPI)
   modelos.py          Pipelines, búsqueda de hiperparámetros, métricas, ingenuos, importancia
   corridas.py         Corridas del informe y análisis del modelo adoptado
   pronostico.py       Pronóstico del mes siguiente con el modelo adoptado
-  figuras.py          Las 14 figuras del informe
+  figuras.py          Las 15 figuras del informe
 core/ schemas/ services/ routers/   Configuración, esquemas Pydantic, servicio y endpoints
 cli.py              Línea de comandos: descargar, preparar, corridas, figuras, pronosticar
 datos/fuentes/      URLs de los 34 archivos mensuales y del diccionario
@@ -165,7 +165,8 @@ Todos los endpoints son `GET` y responden JSON. La documentación interactiva es
 | `/api/distritos/{ubigeo}` | Serie mensual, meses atípicos, pronósticos de la prueba 2026 y pronóstico del mes siguiente |
 | `/api/grupos` | k-means: codo, silueta, perfil de cada grupo, proyección PCA y agrupamiento jerárquico (dendrograma y coincidencias) |
 | `/api/atipicos` | DBSCAN: parámetros, curva k-distancia, distrito-meses evaluados y atípicos |
-| `/api/modelos` | Métricas de las corridas, validación cruzada, gradiente descendiente, importancia de variables, valores reales frente a pronosticados en 2026 y bootstrap del modelo adoptado frente a los demás |
+| `/api/modelos` | Métricas de las corridas, validación cruzada, gradiente descendiente (con su curva de costo), importancia de variables, valores reales frente a pronosticados en 2026 y bootstrap del modelo adoptado frente a los demás |
+| `/api/predicciones` | Pronósticos de la prueba temporal 2026 de los once modelos y del ingenuo, para compararlos distrito-mes a distrito-mes |
 | `/api/regional` | Serie regional mensual y pronóstico agregado de 2026 |
 | `/api/pronostico` | Pronóstico del mes siguiente para los 78 distritos |
 | `/api/pronostico/{ubigeo}?dias=31` | Pronóstico de un distrito; `dias` = días facturados supuestos (20 a 40) |
