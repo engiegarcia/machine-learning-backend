@@ -1,0 +1,22 @@
+{
+  "modelo": "k-means (scikit-learn)",
+  "entrada": "consumo medio mensual por distrito, 2024-2025, logaritmo y estandarizado",
+  "k": 3,
+  "semilla": 42,
+  "silueta": 0.5871,
+  "distritos_por_grupo": {
+    "1": 19,
+    "2": 41,
+    "3": 18
+  },
+  "rand_ajustado_vs_jerarquico": 0.6463,
+  "varianza_pca_componente_1": 0.9937,
+  "versiones": {
+    "numpy": "2.4.6",
+    "pandas": "3.1.1",
+    "scikit-learn": "1.9.1",
+    "scipy": "1.17.1",
+    "xgboost": "3.2.0",
+    "matplotlib": "3.11.2"
+  }
+}
