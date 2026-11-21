@@ -1,8 +1,9 @@
 """Servicio de la API: carga el panel y los resultados y entrena el modelo de pronóstico.
 
 Se crea una sola vez al iniciar la aplicación. Los resultados de las corridas vienen de
-``python cli.py corridas`` (``resultados/resultados.json``); el modelo adoptado (Random Forest,
-corrida 2) se reentrena con todos los distrito-meses para pronosticar el mes siguiente.
+``python cli.py corridas`` (``resultados/resultados.json``); el modelo adoptado de la corrida 2
+(el de menor MAE en la prueba temporal) se reentrena con todos los distrito-meses para
+pronosticar el mes siguiente.
 """
 
 from __future__ import annotations
@@ -60,9 +61,11 @@ class MLService:
         self.pn = car.agregar_rezagos(pn.merge(grupo, left_on="UBIGEO", right_index=True))
         self.nombres = self.pn.drop_duplicates("UBIGEO").set_index("UBIGEO")
         params = dict(self.r["c2B"][self.r["mejor"]]["params"])
-        if settings.arboles_pronostico:
+        if settings.arboles_pronostico and "n_estimators" in params:
             params["n_estimators"] = settings.arboles_pronostico
-        self.modelo = pronostico.entrenar(car.supervisado(self.pn), params, n_jobs=settings.n_jobs)
+        self.modelo = pronostico.entrenar(
+            car.supervisado(self.pn), params, n_jobs=settings.n_jobs, nombre=self.r["mejor"]
+        )
         self._siguiente = pronostico.filas_siguiente(self.pn)
         self._atipicos = {(a["ubigeo"], a["periodo"]) for a in self.r["dbscan_atipicos"]}
         logger.info("Modelo de pronóstico entrenado", extra={"params": params})
@@ -181,6 +184,13 @@ class MLService:
                     for g, (x, y) in sorted(pc["centroides"].items())
                 ],
             ),
+            jerarquico=s.Jerarquico(
+                **{k: v for k, v in r["jerarquico"].items() if k != "dendrograma"},
+                dendrograma=s.Dendrograma(
+                    **r["jerarquico"]["dendrograma"],
+                    nombres=[n.at[u, "DIST_N"] for u in r["jerarquico"]["dendrograma"]["hojas"]],
+                ),
+            ),
         )
 
     def atipicos(self) -> s.AtipicosResponse:
@@ -261,6 +271,12 @@ class MLService:
                     pronostico=q["pred"],
                 )
                 for q in r["pred_B"]
+            ],
+            comparacion_adoptado=[
+                s.ComparacionAdoptado(modelo=k, **v)
+                for k, v in sorted(
+                    r["comparacion_adoptado"].items(), key=lambda kv: kv[1]["diferencia"]
+                )
             ],
         )
 

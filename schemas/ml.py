@@ -125,12 +125,33 @@ class ProyeccionPCA(BaseModel):
     centroides: list[CentroidePCA]
 
 
+class Dendrograma(BaseModel):
+    icoord: list[list[float]] = Field(description="Coordenadas x de cada unión (4 puntos)")
+    dcoord: list[list[float]] = Field(description="Alturas de cada unión (4 puntos)")
+    hojas: list[str] = Field(description="Ubigeos en el orden de las hojas")
+    nombres: list[str] = Field(description="Distrito de cada hoja")
+
+
+class Jerarquico(BaseModel):
+    k: int
+    silueta: dict[int, float]
+    k_silueta: int = Field(description="k con la mayor silueta media")
+    ari: float = Field(description="Índice de Rand ajustado frente a k-means")
+    coincidencias: dict[int, dict[int, int]] = Field(
+        description="Distritos por grupo de k-means (fila) y grupo jerárquico (columna)"
+    )
+    grupo: dict[str, int]
+    altura_corte: float
+    dendrograma: Dendrograma
+
+
 class GruposResponse(BaseModel):
     k: int
     silueta: dict[int, float]
     codo: dict[int, float]
     grupos: list[Grupo]
     pca: ProyeccionPCA
+    jerarquico: Jerarquico
 
 
 class Atipico(BaseModel):
@@ -195,6 +216,14 @@ class PuntoDispersion(BaseModel):
     pronostico: float
 
 
+class ComparacionAdoptado(BaseModel):
+    modelo: str
+    diferencia: float = Field(description="MAE del adoptado menos MAE del modelo (kWh)")
+    ic_inferior: float
+    ic_superior: float
+    p_menor: float = Field(description="Proporción de réplicas en que el adoptado tiene menor MAE")
+
+
 class ModelosResponse(BaseModel):
     corridas: list[Corrida]
     adoptado: str
@@ -204,6 +233,9 @@ class ModelosResponse(BaseModel):
     mape: dict[str, float]
     real_vs_pronostico: list[PuntoDispersion] = Field(
         description="Prueba temporal 2026 del modelo adoptado (corrida 2)"
+    )
+    comparacion_adoptado: list[ComparacionAdoptado] = Field(
+        description="Bootstrap por distrito de la diferencia de MAE en la prueba 2026"
     )
 
 
