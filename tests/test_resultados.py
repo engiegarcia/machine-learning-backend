@@ -36,6 +36,16 @@ def test_no_supervisado(r):
     assert [g["n_distritos"] for g in r["kmeans_grupos"]] == [19, 41, 18]
     assert r["dbscan"]["ruido"] == 30 and r["dbscan"]["min_samples"] == 6
     assert r["dbscan"]["eps"] == pytest.approx(0.837, abs=5e-4)
+    assert r["kmeans_pca"]["varianza"][0] == pytest.approx(0.994, abs=5e-4)
+    assert len(r["kmeans_pca"]["puntos"]) == 78
+    pt = r["dbscan_puntos"]
+    assert len(pt["ubigeo"]) == len(pt["periodo"]) == len(pt["lab"]) == r["dbscan"]["n"]
+    ruido = {
+        (u, p)
+        for u, p, lab in zip(pt["ubigeo"], pt["periodo"], pt["lab"], strict=True)
+        if lab == -1
+    }
+    assert ruido == {(a["ubigeo"], a["periodo"]) for a in r["dbscan_atipicos"]}
 
 
 def test_corridas(r):

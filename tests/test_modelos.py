@@ -8,7 +8,7 @@ import pytest
 
 from ml import caracteristicas as car
 from ml import modelos, pronostico
-from ml.agrupamiento import dbscan_atipicos, kmeans_distritos, rodilla
+from ml.agrupamiento import dbscan_atipicos, kmeans_distritos, proyeccion_pca, rodilla
 from ml.gradiente import GDRegressor, ecuacion_normal
 
 
@@ -65,6 +65,17 @@ def test_kmeans_separa_niveles(panel_sintetico):
     assert km.k == 2
     assert km.grupo["200201"] == km.grupo["200202"] == 1  # menor consumo → grupo 1
     assert km.grupo["200101"] == km.grupo["200104"] == 2
+
+
+def test_pca_ordena_los_grupos_por_consumo(panel_sintetico):
+    km = kmeans_distritos(car.ordenar(panel_sintetico), ks=range(2, 4))
+    pc = proyeccion_pca(km)
+    assert len(pc["varianza"]) == 2 and sum(pc["varianza"]) <= 1 + 1e-9
+    assert set(pc["puntos"]) == set(km.perfiles.index)
+    # La componente 1 crece con el consumo: el grupo de mayor consumo queda a la derecha.
+    assert pc["centroides"][2][0] > pc["centroides"][1][0]
+    x1 = [pc["puntos"][u][0] for u in km.grupo.index if km.grupo[u] == 1]
+    assert pc["centroides"][1][0] == pytest.approx(np.mean(x1))
 
 
 def test_dbscan_marca_un_mes_anomalo(pn):

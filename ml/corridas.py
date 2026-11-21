@@ -22,7 +22,7 @@ from sklearn.model_selection import train_test_split
 
 from ml import caracteristicas as car
 from ml import modelos
-from ml.agrupamiento import dbscan_atipicos, kmeans_distritos, resumen_grupos
+from ml.agrupamiento import dbscan_atipicos, kmeans_distritos, proyeccion_pca, resumen_grupos
 from ml.config import SEMILLA
 
 logger = logging.getLogger(__name__)
@@ -49,6 +49,7 @@ def _no_supervisado(pn: pd.DataFrame, km: Any, r: dict[str, Any]) -> None:
     r["kmeans_codo"], r["kmeans_silueta"], r["kmeans_k"] = km.codo, km.silueta, km.k
     r["kmeans_grupos"] = resumen_grupos(km, pn)
     r["kmeans_asignacion"] = {u: int(g) for u, g in km.grupo.items()}
+    r["kmeans_pca"] = proyeccion_pca(km)
 
     db = dbscan_atipicos(pn)
     d, ru = db.filas, db.ruido
@@ -84,6 +85,8 @@ def _no_supervisado(pn: pd.DataFrame, km: Any, r: dict[str, Any]) -> None:
         "x": [float(v) for v in db.z[:, 1]],
         "y": [float(v) for v in db.z[:, 2]],
         "lab": [int(v) for v in d["db"]],
+        "ubigeo": d["UBIGEO"].tolist(),
+        "periodo": d["PERIODO"].tolist(),
     }
 
 

@@ -1,7 +1,8 @@
 """Aprendizaje no supervisado.
 
 * k-means agrupa los distritos por su perfil mensual de consumo (2024-2025, en logaritmo y
-  estandarizado); k se elige con el coeficiente de silueta y se reporta el codo (SSE).
+  estandarizado); k se elige con el coeficiente de silueta y se reporta el codo (SSE). Para
+  verlos en un plano, los perfiles se proyectan en sus dos primeras componentes principales.
 * DBSCAN busca distrito-meses atípicos en ``[ln y, ln(y/y_{t-1}), ln(y/y_{t-12})]``
   estandarizado, con ``min_samples = 2·dimensión`` y ε en la rodilla de la curva k-distancia.
 """
@@ -13,6 +14,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 from sklearn.cluster import DBSCAN, KMeans
+from sklearn.decomposition import PCA
 from sklearn.metrics import silhouette_score
 from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import StandardScaler
@@ -55,6 +57,33 @@ def kmeans_distritos(pn: pd.DataFrame, ks: range = range(2, 11)) -> ResultadoKMe
     orden = {viejo: nuevo + 1 for nuevo, viejo in enumerate(nivel.index)}
     grupo = pd.Series([orden[e] for e in km.labels_], index=prof.index, name="grupo")
     return ResultadoKMeans(int(k_sel), codo, silueta, grupo, prof)
+
+
+def proyeccion_pca(res: ResultadoKMeans) -> dict[str, object]:
+    """Perfiles de k-means (mismo logaritmo y estandarización) en sus dos primeras componentes.
+
+    El signo de cada componente es arbitrario; se fija para que la componente 1 crezca con el
+    consumo medio y la carga de mayor magnitud de la componente 2 sea positiva. Los centroides
+    son la media de los puntos proyectados de cada grupo.
+    """
+    x = StandardScaler().fit_transform(np.log(res.perfiles.values))
+    pca = PCA(n_components=2, random_state=SEMILLA).fit(x)
+    signo = np.ones(2)
+    if np.corrcoef(pca.transform(x)[:, 0], x.mean(axis=1))[0, 1] < 0:
+        signo[0] = -1
+    if pca.components_[1][np.argmax(np.abs(pca.components_[1]))] < 0:
+        signo[1] = -1
+    z = pca.transform(x) * signo
+    g = res.grupo.loc[res.perfiles.index].values
+    return {
+        "varianza": [float(v) for v in pca.explained_variance_ratio_],
+        "puntos": {
+            u: [float(a), float(b)] for u, (a, b) in zip(res.perfiles.index, z, strict=True)
+        },
+        "centroides": {
+            int(k): [float(v) for v in z[g == k].mean(axis=0)] for k in range(1, res.k + 1)
+        },
+    }
 
 
 def resumen_grupos(res: ResultadoKMeans, pn: pd.DataFrame) -> list[dict[str, object]]:
