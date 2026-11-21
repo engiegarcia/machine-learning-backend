@@ -1,8 +1,10 @@
 """Aprendizaje supervisado: pipelines, búsqueda de hiperparámetros, métricas y referencias.
 
 Cada modelo es un ``Pipeline`` de scikit-learn: ``ColumnTransformer`` (``StandardScaler`` para
-las numéricas y ``OneHotEncoder`` para las categóricas) seguido del regresor. Las métricas se
-calculan siempre en kWh, también en la corrida 2, cuyo objetivo es la variación logarítmica.
+las numéricas y ``OneHotEncoder`` para las categóricas) seguido del regresor. SVR y la red
+neuronal estandarizan además el objetivo (``TransformedTargetRegressor``), porque sus
+hiperparámetros (ε, tasa de aprendizaje) dependen de su escala. Las métricas se calculan siempre
+en kWh, también en la corrida 2, cuyo objetivo es la variación logarítmica.
 """
 
 from __future__ import annotations
@@ -14,13 +16,18 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from sklearn.base import RegressorMixin
-from sklearn.compose import ColumnTransformer
+from sklearn.compose import ColumnTransformer, TransformedTargetRegressor
 from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
-from sklearn.linear_model import LinearRegression, Ridge
+from sklearn.linear_model import Lasso, LinearRegression, Ridge
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import GridSearchCV, KFold
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.neural_network import MLPRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.svm import SVR
+from sklearn.tree import DecisionTreeRegressor
+from xgboost import XGBRegressor
 
 from ml import caracteristicas as car
 from ml.config import SEMILLA
@@ -30,8 +37,52 @@ TASAS_GD = (0.01, 0.1, 0.5)
 EPOCAS_GD = 3000
 TASA_GD = 0.1
 
+
+def _escalado(modelo: RegressorMixin) -> TransformedTargetRegressor:
+    """Estandariza el objetivo antes de ajustar ``modelo`` y deshace la escala al predecir."""
+    return TransformedTargetRegressor(regressor=modelo, transformer=StandardScaler())
+
+
+def _svr() -> RegressorMixin:
+    return _escalado(SVR(kernel="rbf"))
+
+
+def _red() -> RegressorMixin:
+    return _escalado(
+        MLPRegressor(max_iter=2000, early_stopping=True, n_iter_no_change=20, random_state=SEMILLA)
+    )
+
+
+def _xgb(**kw: Any) -> RegressorMixin:
+    return XGBRegressor(random_state=SEMILLA, n_jobs=1, tree_method="hist", **kw)
+
+
+# Modelos supervisados con su rejilla de hiperparámetros (en el orden de las tablas del informe).
 REJILLAS: dict[str, tuple[Callable[[], RegressorMixin], dict[str, list[Any]]]] = {
     "Ridge": (lambda: Ridge(), {"m__alpha": [0.01, 0.1, 1, 10, 100]}),
+    "Lasso": (
+        lambda: Lasso(max_iter=50_000),
+        {"m__alpha": [0.0001, 0.001, 0.01, 0.1, 1, 10]},
+    ),
+    "Árbol de decisión": (
+        lambda: DecisionTreeRegressor(random_state=SEMILLA),
+        {"m__max_depth": [3, 5, 10, None], "m__min_samples_leaf": [1, 5, 10]},
+    ),
+    "KNN": (
+        lambda: KNeighborsRegressor(),
+        {"m__n_neighbors": [3, 5, 10, 20, 40], "m__weights": ["uniform", "distance"]},
+    ),
+    "SVR": (
+        _svr,
+        {"m__regressor__C": [0.1, 1, 10, 100], "m__regressor__epsilon": [0.01, 0.1, 0.5]},
+    ),
+    "Red neuronal (MLP)": (
+        _red,
+        {
+            "m__regressor__hidden_layer_sizes": [(32,), (64, 32)],
+            "m__regressor__alpha": [0.0001, 0.01, 1],
+        },
+    ),
     "Random Forest": (
         lambda: RandomForestRegressor(random_state=SEMILLA, n_jobs=-1),
         {
@@ -48,15 +99,46 @@ REJILLAS: dict[str, tuple[Callable[[], RegressorMixin], dict[str, list[Any]]]] =
             "m__max_depth": [2, 3, 4],
         },
     ),
+    "XGBoost": (
+        _xgb,
+        {
+            "m__n_estimators": [200, 500],
+            "m__learning_rate": [0.03, 0.1],
+            "m__max_depth": [3, 6],
+            "m__subsample": [0.8, 1.0],
+        },
+    ),
 }
 
-# Modelos con sus valores por defecto para la validación cruzada k = 5 (Ridge con el α elegido).
-POR_DEFECTO: dict[str, Callable[[float], RegressorMixin]] = {
-    "Regresión lineal": lambda a: LinearRegression(),
-    "Ridge": lambda a: Ridge(alpha=a),
-    "Random Forest": lambda a: RandomForestRegressor(random_state=SEMILLA, n_jobs=-1),
-    "Gradient Boosting": lambda a: GradientBoostingRegressor(random_state=SEMILLA),
+# Validación cruzada k = 5 con los valores por defecto de cada modelo; Ridge y Lasso usan el α
+# elegido en la búsqueda, porque su valor por defecto (α = 1) no tiene sentido en ambas escalas.
+POR_DEFECTO: dict[str, Callable[[dict[str, Any]], RegressorMixin]] = {
+    "Regresión lineal": lambda e: LinearRegression(),
+    "Ridge": lambda e: Ridge(alpha=e["Ridge"]["alpha"]),
+    "Lasso": lambda e: Lasso(alpha=e["Lasso"]["alpha"], max_iter=50_000),
+    "Árbol de decisión": lambda e: DecisionTreeRegressor(random_state=SEMILLA),
+    "KNN": lambda e: KNeighborsRegressor(),
+    "SVR": lambda e: _svr(),
+    "Red neuronal (MLP)": lambda e: _red(),
+    "Random Forest": lambda e: RandomForestRegressor(random_state=SEMILLA, n_jobs=-1),
+    "Gradient Boosting": lambda e: GradientBoostingRegressor(random_state=SEMILLA),
+    "XGBoost": lambda e: _xgb(),
 }
+
+
+def nombre_parametro(clave: str) -> str:
+    """``m__regressor__C`` → ``C``."""
+    return clave.replace("m__", "").replace("regressor__", "")
+
+
+def crear(nombre: str, params: dict[str, Any]) -> RegressorMixin:
+    """Modelo ``nombre`` con los hiperparámetros elegidos (claves sin prefijos)."""
+    modelo = REJILLAS[nombre][0]()
+    if isinstance(modelo, TransformedTargetRegressor):
+        modelo.regressor.set_params(**params)
+    else:
+        modelo.set_params(**params)
+    return modelo
 
 
 def preprocesador(f: int) -> ColumnTransformer:
@@ -152,19 +234,19 @@ def evaluar(f: int, tr: pd.DataFrame, te: pd.DataFrame) -> dict[str, Any]:
         p = car.a_kwh(f, gs.predict(xte), te)
         out[nombre] = {
             "test": metricas(yte, p),
-            "params": {k.replace("m__", ""): v for k, v in gs.best_params_.items()},
+            "params": {nombre_parametro(k): v for k, v in gs.best_params_.items()},
             "n_combinaciones": len(gs.cv_results_["params"]),
             "segundos": time.time() - t0,
             "_model": gs.best_estimator_,
             "_pred": p,
         }
 
-    alpha = out["Ridge"]["params"]["alpha"]
+    elegidos = {k: v["params"] for k, v in out.items() if k in REJILLAS}
     cvres = {}
-    for nombre, crear in POR_DEFECTO.items():
+    for nombre, por_defecto in POR_DEFECTO.items():
         ms = []
         for itr, iva in cv.split(xtr):
-            m = pipeline(f, crear(alpha)).fit(xtr.iloc[itr], ttr[itr])
+            m = pipeline(f, por_defecto(elegidos)).fit(xtr.iloc[itr], ttr[itr])
             va = tr.iloc[iva]
             ms.append(metricas(va["y"].values, car.a_kwh(f, m.predict(xtr.iloc[iva]), va)))
         cvres[nombre] = {k: float(np.mean([m_[k] for m_ in ms])) for k in ("MAE", "RMSE", "R2")}

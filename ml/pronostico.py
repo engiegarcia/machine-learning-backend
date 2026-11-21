@@ -16,20 +16,22 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestRegressor
 from sklearn.pipeline import Pipeline
 
 from ml import caracteristicas as car
 from ml import modelos
-from ml.config import SEMILLA
 
 F = 2
 
 
-def entrenar(d: pd.DataFrame, params: dict, n_jobs: int = -1) -> Pipeline:
-    """Random Forest de la corrida 2 con los hiperparámetros elegidos en la búsqueda."""
-    rf = RandomForestRegressor(random_state=SEMILLA, n_jobs=n_jobs, **params)
-    return modelos.pipeline(F, rf).fit(d[car.entradas(F)], d[car.objetivo(F)].values)
+def entrenar(
+    d: pd.DataFrame, params: dict, n_jobs: int = -1, nombre: str = "Random Forest"
+) -> Pipeline:
+    """Modelo adoptado de la corrida 2 con los hiperparámetros elegidos en la búsqueda."""
+    m = modelos.crear(nombre, params)
+    if "n_jobs" in m.get_params() and nombre != "XGBoost":
+        m.set_params(n_jobs=n_jobs)
+    return modelos.pipeline(F, m).fit(d[car.entradas(F)], d[car.objetivo(F)].values)
 
 
 @dataclass

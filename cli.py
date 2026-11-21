@@ -116,7 +116,9 @@ def pronosticar(args: argparse.Namespace) -> int:
     pn = car.ordenar(pd.read_parquet(config.PANEL))
     grupo = pd.Series(r["kmeans_asignacion"], name="grupo")
     pn = car.agregar_rezagos(pn.merge(grupo, left_on="UBIGEO", right_index=True))
-    modelo = pronostico.entrenar(car.supervisado(pn), r["c2B"]["Random Forest"]["params"])
+    modelo = pronostico.entrenar(
+        car.supervisado(pn), r["c2B"][r["mejor"]]["params"], nombre=r["mejor"]
+    )
     dias = {args.ubigeo: args.dias} if args.ubigeo and args.dias else None
     x = pronostico.filas_siguiente(pn, dias)
     if args.ubigeo:
