@@ -17,6 +17,7 @@ from schemas.ml import (
     ErrorResponse,
     GruposResponse,
     ModelosResponse,
+    PrediccionesResponse,
     PronosticoResponse,
     RegionalResponse,
     ResumenResponse,
@@ -72,6 +73,12 @@ def atipicos(servicio: Servicio) -> AtipicosResponse:
 def modelos(servicio: Servicio) -> ModelosResponse:
     """Métricas de las corridas 1 y 2 en ambos esquemas y análisis del modelo adoptado."""
     return servicio.modelos()
+
+
+@router.get("/predicciones", response_model=PrediccionesResponse)
+def predicciones(servicio: Servicio) -> PrediccionesResponse:
+    """Pronósticos de cada modelo en la prueba temporal 2026 (corrida 2)."""
+    return servicio.predicciones()
 
 
 @router.get("/regional", response_model=RegionalResponse)

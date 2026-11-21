@@ -239,6 +239,25 @@ class ModelosResponse(BaseModel):
     )
 
 
+class FilaPrediccion(BaseModel):
+    ubigeo: str
+    distrito: str
+    periodo: str
+    grupo: int
+    real: float
+    ingenuo: float = Field(description="Pronóstico ingenuo: consumo del mes anterior")
+
+
+class PrediccionesResponse(BaseModel):
+    """Pronósticos de la prueba temporal 2026 (corrida 2) de todos los modelos."""
+
+    modelos: list[str] = Field(description="Modelos de menor a mayor MAE")
+    filas: list[FilaPrediccion]
+    predicciones: dict[str, list[float]] = Field(
+        description="Pronóstico de cada modelo, en el orden de ``filas`` (kWh)"
+    )
+
+
 class PuntoRegional(BaseModel):
     periodo: str
     media: float

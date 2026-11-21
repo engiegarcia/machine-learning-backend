@@ -13,6 +13,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from core.config import Settings
@@ -68,6 +69,7 @@ class MLService:
         )
         self._siguiente = pronostico.filas_siguiente(self.pn)
         self._atipicos = {(a["ubigeo"], a["periodo"]) for a in self.r["dbscan_atipicos"]}
+        self._real_b = np.array([q["y"] for q in self.r["pred_B"]])
         logger.info("Modelo de pronóstico entrenado", extra={"params": params})
 
     # ------------------------------------------------------------------ consultas
@@ -245,7 +247,7 @@ class MLService:
                             s.Metrica(modelo=k, MAE=v["MAE"], RMSE=v["RMSE"], R2=v["R2"])
                             for k, v in c["_cv"].items()
                         ],
-                        gradiente={k: v for k, v in c["_gd"].items() if k != "curvas"},
+                        gradiente=c["_gd"],
                     )
                 )
         return s.ModelosResponse(
@@ -278,6 +280,26 @@ class MLService:
                     r["comparacion_adoptado"].items(), key=lambda kv: kv[1]["diferencia"]
                 )
             ],
+        )
+
+    def predicciones(self) -> s.PrediccionesResponse:
+        r = self.r
+        pm = r["pred_modelos_B"]
+        mae = {k: float(np.mean(np.abs(np.array(v) - self._real_b))) for k, v in pm.items()}
+        return s.PrediccionesResponse(
+            modelos=sorted(pm, key=mae.get),
+            filas=[
+                s.FilaPrediccion(
+                    ubigeo=q["UBIGEO"],
+                    distrito=q["DIST_N"],
+                    periodo=q["PERIODO"],
+                    grupo=int(q["grupo"]),
+                    real=q["y"],
+                    ingenuo=q["pred_ingenuo"],
+                )
+                for q in r["pred_B"]
+            ],
+            predicciones={k: [round(x, 4) for x in v] for k, v in pm.items()},
         )
 
     def regional(self) -> s.RegionalResponse:

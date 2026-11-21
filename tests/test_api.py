@@ -73,7 +73,17 @@ def test_modelos_y_regional(client):
     assert svr["MAE"] == pytest.approx(3.155, abs=5e-4)
     comp = {c["modelo"]: c for c in m["comparacion_adoptado"]}
     assert comp["Ingenuo (mes anterior)"]["p_menor"] == 1.0
-    assert "curvas" not in c2b["gradiente"]
+    assert len(c2b["gradiente"]["curvas"]["0.1"]) == 300
+
+
+def test_predicciones_de_todos_los_modelos(client):
+    p = client.get("/api/predicciones").json()
+    assert p["modelos"][0] == "SVR" and len(p["modelos"]) == 11
+    assert len(p["filas"]) == 780
+    assert all(len(v) == 780 for v in p["predicciones"].values())
+    real = [f["real"] for f in p["filas"]]
+    mae = sum(abs(a - b) for a, b in zip(p["predicciones"]["SVR"], real, strict=True)) / 780
+    assert mae == pytest.approx(3.155, abs=5e-4)
     reg = client.get("/api/regional").json()["serie"]
     assert len(reg) == 34 and reg[-1]["pronostico"] is not None and reg[0]["pronostico"] is None
 
