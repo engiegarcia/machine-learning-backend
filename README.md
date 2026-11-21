@@ -109,6 +109,25 @@ Los resultados (`resultados/resultados.json`) son los del informe y se reproduce
 
 - **DBSCAN**: ε = 0,837 y `min_samples` = 6; marca 30 distrito-meses atípicos de 1716 evaluados.
 
+## Notebooks
+
+Tres notebooks recorren el trabajo paso a paso con el mismo código del paquete `ml/`. Se entregan
+ejecutados, con sus tablas y gráficos visibles, y cada uno termina verificando que sus cifras
+coinciden con las del informe.
+
+| Notebook | Contenido | Genera |
+|---|---|---|
+| `notebooks/01_datos_y_preprocesamiento.ipynb` | Fuente, variables y datos personales, análisis exploratorio, filtrado, cercas de Tukey, panel distrito-mes y formulaciones | `datos/procesados/panel.parquet` |
+| `notebooks/02_no_supervisado.ipynb` | Perfiles mensuales, k-means (codo y silueta), grupos, PCA, agrupamiento jerárquico y DBSCAN | `modelos/kmeans_distritos.joblib` |
+| `notebooks/03_supervisado.ipynb` | Particiones A y B, ingenuos, gradiente descendiente, once modelos con búsqueda en rejilla, bootstrap, análisis y exportación del modelo adoptado | `modelos/svr_corrida2.joblib` |
+
+Todos siguen la misma plantilla: objetivo, entradas y salidas, índice; en cada sección, teoría con
+sus ecuaciones y citas, código breve, resultado e interpretación; verificación, conclusiones y
+referencias. Se abren con Jupyter o VS Code usando el entorno del proyecto (`ipykernel` está en
+`requirements-dev.txt`). El primero necesita los recibos de `datos/limpios/`
+(`python cli.py descargar`), unos 8 GB de memoria y unos dos minutos; los otros dos parten del panel
+del repositorio.
+
 ## Estructura
 
 ```
@@ -128,6 +147,8 @@ cli.py              Línea de comandos: descargar, preparar, corridas, figuras, 
 datos/fuentes/      URLs de los 34 archivos mensuales y del diccionario
 datos/procesados/   Panel distrito-mes y resumen del preprocesamiento
 resultados/         Resultados de las corridas y figuras
+notebooks/          Notebooks del trabajo y estilo común de sus gráficos
+modelos/            Modelos exportados por los notebooks (.joblib)
 tests/              Pruebas (lectura sin datos personales, panel, modelos, artefactos, API)
 ```
 
