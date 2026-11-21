@@ -10,3 +10,5 @@ __pycache__
 tests
 datos/limpios
 resultados/figuras
+notebooks
+modelos
