@@ -7,8 +7,8 @@
   - A: división aleatoria 80/20 (semilla 42) con validación cruzada k = 5;
   - B: prueba temporal, entrenamiento feb-dic 2025 y prueba ene-oct 2026.
 
-* Modelo adoptado: el mejor de Ridge, Random Forest y Gradient Boosting en la corrida 2,
-  esquema B; se analiza su error por grupo, por mes y la importancia de sus variables.
+* Modelo adoptado: el de menor MAE, entre los que tienen búsqueda de hiperparámetros, en la
+  corrida 2, esquema B; se analiza su error por grupo, por mes y la importancia de sus variables.
 """
 
 from __future__ import annotations
@@ -22,12 +22,18 @@ from sklearn.model_selection import train_test_split
 
 from ml import caracteristicas as car
 from ml import modelos
-from ml.agrupamiento import dbscan_atipicos, kmeans_distritos, proyeccion_pca, resumen_grupos
+from ml.agrupamiento import (
+    dbscan_atipicos,
+    jerarquico_distritos,
+    kmeans_distritos,
+    proyeccion_pca,
+    resumen_grupos,
+)
 from ml.config import SEMILLA
 
 logger = logging.getLogger(__name__)
 
-CANDIDATOS = ("Ridge", "Random Forest", "Gradient Boosting")
+CANDIDATOS = tuple(modelos.REJILLAS)
 ANIO_PRUEBA = 2026
 
 
@@ -50,6 +56,7 @@ def _no_supervisado(pn: pd.DataFrame, km: Any, r: dict[str, Any]) -> None:
     r["kmeans_grupos"] = resumen_grupos(km, pn)
     r["kmeans_asignacion"] = {u: int(g) for u, g in km.grupo.items()}
     r["kmeans_pca"] = proyeccion_pca(km)
+    r["jerarquico"] = jerarquico_distritos(km)
 
     db = dbscan_atipicos(pn)
     d, ru = db.filas, db.ruido
@@ -90,9 +97,44 @@ def _no_supervisado(pn: pd.DataFrame, km: Any, r: dict[str, Any]) -> None:
     }
 
 
+def comparar_errores(
+    err: dict[str, np.ndarray], base: str, grupos: np.ndarray, repeticiones: int = 2000
+) -> dict[str, dict[str, float]]:
+    """Diferencia de MAE de ``base`` frente a cada modelo, con bootstrap por distrito.
+
+    Se remuestrean distritos completos (con sus diez meses de 2026) para respetar la
+    dependencia entre los meses de un mismo distrito. Diferencias negativas: ``base`` tiene
+    menor error. Devuelve la diferencia observada, el intervalo del 95 % y la proporción de
+    réplicas en que ``base`` tiene menor MAE.
+    """
+    rng = np.random.default_rng(SEMILLA)
+    ids = np.unique(grupos)
+    pos = {u: np.flatnonzero(grupos == u) for u in ids}
+    muestras = [
+        np.concatenate([pos[u] for u in rng.choice(ids, len(ids))]) for _ in range(repeticiones)
+    ]
+    out = {}
+    for nombre, e in err.items():
+        if nombre == base:
+            continue
+        d = np.array([err[base][s].mean() - e[s].mean() for s in muestras])
+        lo, hi = np.percentile(d, [2.5, 97.5])
+        out[nombre] = {
+            "diferencia": float(err[base].mean() - e.mean()),
+            "ic_inferior": float(lo),
+            "ic_superior": float(hi),
+            "p_menor": float(np.mean(d < 0)),
+        }
+    return out
+
+
 def _modelo_adoptado(res_b: dict[str, Any], te: pd.DataFrame, r: dict[str, Any]) -> None:
     mejor = min(CANDIDATOS, key=lambda k: res_b[k]["test"]["MAE"])
     r["mejor"] = mejor
+    y = te["y"].values
+    err = {k: np.abs(res_b[k]["_pred"] - y) for k in CANDIDATOS}
+    err["Ingenuo (mes anterior)"] = np.abs(te["lag1"].values - y)
+    r["comparacion_adoptado"] = comparar_errores(err, mejor, te["UBIGEO"].values)
     r["importancia"] = modelos.importancia_permutacion(res_b[mejor]["_model"], 2, te)
     cols = ["UBIGEO", "DIST_N", "PROV_N", "PERIODO", "y", "lag1", "lag12", "n_act", "grupo"]
     t = te[cols].copy()
