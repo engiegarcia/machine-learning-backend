@@ -180,6 +180,24 @@ class _Figuras:
         ax.legend(fontsize=9.5, loc="upper center", bbox_to_anchor=(0.5, -0.1), ncol=3)
         self.guardar(fig, "perfiles.png")
 
+    def pca(self) -> None:
+        pc = self.r["kmeans_pca"]
+        g = self.r["kmeans_asignacion"]
+        v = pc["varianza"]
+        fig, ax = plt.subplots(figsize=(7.2, 4.4))
+        for gk in sorted({int(x) for x in g.values()}):
+            pts = np.array([pc["puntos"][u] for u, k in g.items() if int(k) == gk])
+            col = COLOR_GRUPO.get(gk, GRIS)
+            ax.scatter(pts[:, 0], pts[:, 1], s=22, color=col, alpha=0.85, label=f"Grupo {gk}")
+            cx, cy = pc["centroides"][str(gk)]
+            ax.scatter([cx], [cy], marker="X", s=170, color=col, edgecolor="#222", lw=1)
+        ax.set_xlabel(f"Componente principal 1 ({coma(v[0] * 100, 1)} % de la varianza)")
+        ax.set_ylabel(f"Componente principal 2 ({coma(v[1] * 100, 1)} %)")
+        ax.xaxis.set_major_formatter(lambda t, _: coma(t, 0).replace("-", "−"))
+        ax.yaxis.set_major_formatter(lambda t, _: coma(t, 1).replace("-", "−"))
+        ax.legend(fontsize=9.5)
+        self.guardar(fig, "pca.png")
+
     def dbscan(self) -> None:
         r = self.r
         kd, eps = np.array(r["dbscan_kdist"]), r["dbscan"]["eps"]
@@ -367,7 +385,7 @@ class _Figuras:
 def generar(
     resultados: dict[str, Any], preprocesamiento: dict[str, Any], destino: Path
 ) -> list[str]:
-    """Dibuja las 12 figuras del informe en ``destino`` y devuelve sus nombres."""
+    """Dibuja las 13 figuras del informe en ``destino`` y devuelve sus nombres."""
     plt.rcParams.update(ESTILO)
     f = _Figuras(resultados, preprocesamiento, destino)
     for paso in (
@@ -376,6 +394,7 @@ def generar(
         f.serie,
         f.codo,
         f.perfiles,
+        f.pca,
         f.dbscan,
         f.gradiente,
         f.comparacion,
